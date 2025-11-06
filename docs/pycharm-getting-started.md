@@ -27,11 +27,12 @@ This quick start guide walks through the minimum commands you need to run the Fr
 Run the compose stack directly from the PyCharm terminal:
 
 ```bash
-docker compose up -d
+docker compose up --build -d
 ```
 
 This command:
 
+- builds the local `frappe/frappe` image the first time it runs so Docker Hub access is not required,
 - starts the containers defined in `compose.yaml`, including PostgreSQL 16,
 - automatically waits for the PostgreSQL health check before running the configurator, and
 - populates the bench with only the Frappe framework so no ERPNext code ships in the container.

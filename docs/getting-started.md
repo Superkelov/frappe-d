@@ -176,8 +176,9 @@ cd frappe_docker
 cp example.env .env
 # Edit .env and set DB_PASSWORD (and optional POSTGRES_* overrides)
 
-# Start core services (Frappe + PostgreSQL 16)
-docker compose up -d
+# Build (first run) and start core services (Frappe + PostgreSQL 16)
+docker compose up --build -d
+# Subsequent runs can omit --build once the local image exists
 
 # Create a site targeting PostgreSQL
 docker compose exec backend bench new-site site.local \
@@ -558,8 +559,8 @@ cd frappe_docker
 cp example.env .env
 # Edit .env and set DB_PASSWORD (and optional POSTGRES_* overrides)
 
-# Start services
-docker compose up -d
+# Build (first run) and start services
+docker compose up --build -d
 
 # Create a site using PostgreSQL
 docker compose exec backend bench new-site site.local \
@@ -877,7 +878,8 @@ Many teams use both: Frappe for back-office/admin tools, Django for customer-fac
 
 ```bash
 # Service Management
-docker compose up -d              # Start all services in background
+docker compose up --build -d      # Build image (first run) and start in background
+docker compose up -d              # Start with existing local image
 docker compose down               # Stop and remove containers
 docker compose down -v            # Stop and remove volumes (data loss!)
 docker compose restart <service>  # Restart specific service

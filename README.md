@@ -37,13 +37,13 @@ If you need a deeper architectural overview, browse the [Getting Started Guide](
 
    > **Tip:** Pre-install apps (for example `ekgfn_core`) by filling `BENCH_GET_APPS` with commands such as `bench get-app https://gitlab.com/kz-dev/adizit/ugq/ucssf/ekgfn_core.git --branch feature/qr_egov`.
 
-4. **Start the Frappe stack (PostgreSQL only)**
+4. **Build and start the Frappe stack (PostgreSQL only)**
 
    ```bash
-   docker compose up -d
+   docker compose up --build -d
    ```
 
-   This launches Frappe backend workers, the nginx frontend, Socket.IO, and a dedicated PostgreSQL 16 database. Confirm everything is healthy with `docker compose ps`.
+   The first run builds a local `frappe/frappe` image (Frappe framework only) before launching backend workers, the nginx frontend, Socket.IO, and a dedicated PostgreSQL 16 database. Confirm everything is healthy with `docker compose ps`.
 
 5. **Create your first site**
 
