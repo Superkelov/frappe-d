@@ -11,16 +11,17 @@ This quick start guide walks through the minimum commands you need to run the Fr
    cp example.env .env
    ```
 
-3. In the new `.env` file set the database password, optional PostgreSQL username/database, and add your custom app to `BENCH_GET_APPS`. For the app mentioned by the customer, the entry should look like this:
+3. In the new `.env` file set the database password, optional PostgreSQL username/database, and add your custom app to `BENCH_GET_APPS`. Provide Git credentials when cloning from a private host by filling `BENCH_GIT_CREDENTIALS` with `.netrc` style entries. For the app mentioned by the customer, the entry should look like this:
 
    ```dotenv
    DB_PASSWORD=your-strong-password
    POSTGRES_USER=postgres
    POSTGRES_DB=postgres
    BENCH_GET_APPS=--branch feature/qr_egov https://gitlab.com/kz-dev/adizit/ugq/ucssf/ekgfn_core.git
+   BENCH_GIT_CREDENTIALS=machine gitlab.com login oauth2 password glpat-xxxxxxxxxxxxxxxx
    ```
 
-   > **Tip:** PyCharm has first-class support for editing `.env` files, so you can rely on IntelliJ's "Open in Editor" action from the terminal output.
+   > **Tip:** PyCharm has first-class support for editing `.env` files, so you can rely on IntelliJ's "Open in Editor" action from the terminal output. Remember to keep tokens secret—PyCharm's `.env` support hides them from VCS by default.
 
 ## 2. Start the stack with PostgreSQL 16
 

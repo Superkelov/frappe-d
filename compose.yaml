@@ -37,6 +37,11 @@ services:
     command:
       - >
         set -eo pipefail;
+        if [ -n "$$BENCH_GIT_CREDENTIALS" ]; then
+          NETRC_PATH="$$HOME/.netrc";
+          printf '%s\n' "$$BENCH_GIT_CREDENTIALS" > "$$NETRC_PATH";
+          chmod 600 "$$NETRC_PATH";
+        fi;
         if [ -n "$$BENCH_GET_APPS" ]; then
           printf '%s\n' "$$BENCH_GET_APPS" | tr ';' '\n' |
           while IFS= read -r app; do
@@ -55,6 +60,7 @@ services:
         bench set-config -gp socketio_port $$SOCKETIO_PORT;
     environment:
       BENCH_GET_APPS: ${BENCH_GET_APPS:-}
+      BENCH_GIT_CREDENTIALS: ${BENCH_GIT_CREDENTIALS:-}
       DB_HOST: ${DB_HOST:-db}
       DB_PORT: ${DB_PORT:-5432}
       REDIS_CACHE: ${REDIS_CACHE:-}

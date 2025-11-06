@@ -192,6 +192,8 @@ docker compose exec backend bench new-site site.local \
 
 > Legacy note: [`pwd.yml`](../pwd.yml) still provisions an ERPNext + MariaDB demo stack for backwards compatibility. Prefer `compose.yaml` for clean Frappe + PostgreSQL deployments.
 
+> **Private Git hosts:** Populate `BENCH_GIT_CREDENTIALS` in `.env` with `.netrc` formatted entries (for example, `machine gitlab.com login oauth2 password <token>`) so the configurator can authenticate before running `bench get-app`.
+
 ### Full Development Setup
 
 For active development with hot-reload and debugging:

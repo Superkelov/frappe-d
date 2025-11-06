@@ -33,9 +33,12 @@ If you need a deeper architectural overview, browse the [Getting Started Guide](
    POSTGRES_DB="frappe"             # Optional — defaults to "postgres"
    POSTGRES_USER="frappe"           # Optional — defaults to "postgres"
    BENCH_GET_APPS=""                # Optional — semicolon separated bench get-app commands
+   BENCH_GIT_CREDENTIALS=""         # Optional — .netrc credentials for private git servers
    ```
 
-   > **Tip:** Pre-install apps (for example `ekgfn_core`) by filling `BENCH_GET_APPS` with commands such as `bench get-app https://gitlab.com/kz-dev/adizit/ugq/ucssf/ekgfn_core.git --branch feature/qr_egov`.
+   > **Tips:**
+   > - Pre-install apps (for example `ekgfn_core`) by filling `BENCH_GET_APPS` with commands such as `bench get-app https://gitlab.com/kz-dev/adizit/ugq/ucssf/ekgfn_core.git --branch feature/qr_egov`.
+   > - For private Git hosts, add a `.netrc` entry (e.g. `machine gitlab.com login oauth2 password <token>`) to `BENCH_GIT_CREDENTIALS` so the configurator can authenticate before cloning.
 
 4. **Build and start the Frappe stack (PostgreSQL only)**
 
