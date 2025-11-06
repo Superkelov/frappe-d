@@ -1,16 +1,31 @@
+# This override is kept for backward compatibility. The base compose file already
+# provisions PostgreSQL 16; include this override only if you need to tweak image
+# settings or credentials beyond what `.env` allows.
+
 services:
   configurator:
     environment:
       DB_HOST: db
       DB_PORT: 5432
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
   db:
-    image: postgres:13.5
-    command: []
+    image: postgres:16
+    restart: unless-stopped
     environment:
       POSTGRES_PASSWORD: ${DB_PASSWORD:?No db password set}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
     volumes:
       - db-data:/var/lib/postgresql/data
 
