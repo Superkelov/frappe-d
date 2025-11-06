@@ -1,57 +1,102 @@
 [![Build Stable](https://github.com/frappe/frappe_docker/actions/workflows/build_stable.yml/badge.svg)](https://github.com/frappe/frappe_docker/actions/workflows/build_stable.yml)
 [![Build Develop](https://github.com/frappe/frappe_docker/actions/workflows/build_develop.yml/badge.svg)](https://github.com/frappe/frappe_docker/actions/workflows/build_develop.yml)
 
-Everything about [Frappe](https://github.com/frappe/frappe) and [ERPNext](https://github.com/frappe/erpnext) in containers.
+# Frappe on Docker (PostgreSQL 16)
 
-# Getting Started
+This repository delivers a **clean Frappe framework environment** that runs exclusively on **PostgreSQL 16**. ERPNext is intentionally excluded so you can bootstrap benches for custom apps without unwanted dependencies or MariaDB containers.
 
-**New to Frappe Docker?** Read the [Getting Started Guide](docs/getting-started.md) for a comprehensive overview of repository structure, development workflow, custom apps, Docker concepts, and quick start examples.
+If you need a deeper architectural overview, browse the [Getting Started Guide](docs/getting-started.md). Continue below for a step-by-step installation walkthrough that has been validated end-to-end.
 
-To get started you need [Docker](https://docs.docker.com/get-docker/), [docker-compose](https://docs.docker.com/compose/), and [git](https://docs.github.com/en/get-started/getting-started-with-git/set-up-git) setup on your machine. For Docker basics and best practices refer to Docker's [documentation](http://docs.docker.com).
+## Clean installation — step by step
 
-Once completed, chose one of the following two sections for next steps.
+1. **Install prerequisites**
+   - [Docker Engine](https://docs.docker.com/get-docker/) with the Compose plugin
+   - [Git](https://docs.github.com/en/get-started/getting-started-with-git/set-up-git)
 
-### Try in Play With Docker
+2. **Clone the repository**
 
-To play in an already set up sandbox, in your browser, click the button below:
+   ```bash
+   git clone https://github.com/frappe/frappe_docker.git
+   cd frappe_docker
+   ```
 
-<a href="https://labs.play-with-docker.com/?stack=https://raw.githubusercontent.com/frappe/frappe_docker/main/pwd.yml">
-  <img src="https://raw.githubusercontent.com/play-with-docker/stacks/master/assets/images/button.png" alt="Try in PWD"/>
-</a>
+3. **Create your environment file**
 
-### Try on your Dev environment
+   ```bash
+   cp example.env .env
+   ```
 
-First clone the repo:
+   Edit `.env` and provide at least these values:
 
-```sh
-git clone https://github.com/frappe/frappe_docker
-cd frappe_docker
+   ```bash
+   DB_PASSWORD="change_me"          # Required — used by the bundled PostgreSQL 16 server
+   POSTGRES_DB="frappe"             # Optional — defaults to "postgres"
+   POSTGRES_USER="frappe"           # Optional — defaults to "postgres"
+   BENCH_GET_APPS=""                # Optional — semicolon separated bench get-app commands
+   ```
+
+   > **Tip:** Pre-install apps (for example `ekgfn_core`) by filling `BENCH_GET_APPS` with commands such as `bench get-app https://gitlab.com/kz-dev/adizit/ugq/ucssf/ekgfn_core.git --branch feature/qr_egov`.
+
+4. **Build and start the Frappe stack (PostgreSQL only)**
+
+   ```bash
+   docker compose up --build -d
+   ```
+
+   The first run builds a local `frappe/frappe` image (Frappe framework only) before launching backend workers, the nginx frontend, Socket.IO, and a dedicated PostgreSQL 16 database. Confirm everything is healthy with `docker compose ps`.
+
+5. **Create your first site**
+
+   ```bash
+   docker compose exec backend bench new-site site.local \
+     --db-type postgres \
+     --db-name site_local \
+     --admin-password admin \
+     --db-root-username "${POSTGRES_USER:-postgres}" \
+     --db-root-password "$DB_PASSWORD"
+   ```
+
+   Replace passwords and names as desired. The command seeds PostgreSQL, creates `sites/site.local`, and registers it as the default site.
+
+6. **(Optional) Install custom apps**
+
+   ```bash
+   docker compose exec backend bench get-app https://gitlab.com/kz-dev/adizit/ugq/ucssf/ekgfn_core.git --branch feature/qr_egov
+   docker compose exec backend bench --site site.local install-app ekgfn_core
+   ```
+
+   Repeat for additional apps or populate `BENCH_GET_APPS` to automate downloads during container start-up.
+
+7. **Access Frappe**
+
+   - Add `site.local` to your hosts file pointing at `127.0.0.1`
+   - Browse to [http://site.local:8080](http://site.local:8080)
+   - Log in using the administrator password you set in step 5
+
+When you are finished, stop the stack with `docker compose down`. Persistent data lives in Docker volumes (`sites`, `db-data`).
+
+### Need ERPNext?
+
+ERPNext is no longer bundled by default. Build the ERPNext stage in [`docker-bake.hcl`](docker-bake.hcl) and override `compose.yaml` manually if you require it, keeping the default stack pristine for Postgres-only benches.
+
+## Helpful commands
+
+```bash
+# Check service health
+docker compose ps
+
+# Follow logs for a specific service
+docker compose logs -f backend
+
+# Run a PostgreSQL shell
+docker compose exec db psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-frappe}"
 ```
 
-Then run: `docker compose -f pwd.yml up -d`
-
-### To run on ARM64 architecture follow this instructions
-
-After you clone the repo and `cd frappe_docker`, run this command to build multi-architecture images specifically for ARM64.
-
-`docker buildx bake --no-cache --set "*.platform=linux/arm64"`
-
-and then
-
-- add `platform: linux/arm64` to all services in the `pwd.yml`
-- replace the current specified versions of erpnext image on `pwd.yml` with `:latest`
-
-Then run: `docker compose -f pwd.yml up -d`
-
-## Final steps
-
-Wait for 5 minutes for ERPNext site to be created or check `create-site` container logs before opening browser on port 8080. (username: `Administrator`, password: `admin`)
-
-If you ran in a Dev Docker environment, to view container logs: `docker compose -f pwd.yml logs -f create-site`. Don't worry about some of the initial error messages, some services take a while to become ready, and then they go away.
-
-# Documentation
+## Documentation
 
 ### [Getting Started Guide](docs/getting-started.md)
+
+### [PyCharm Quick Start](docs/pycharm-getting-started.md)
 
 ### [Frequently Asked Questions](https://github.com/frappe/frappe_docker/wiki/Frequently-Asked-Questions)
 
@@ -82,7 +127,7 @@ If you ran in a Dev Docker environment, to view container logs: `docker compose 
 
 ### [Troubleshoot](docs/troubleshoot.md)
 
-# Contributing
+## Contributing
 
 If you want to contribute to this repo refer to [CONTRIBUTING.md](CONTRIBUTING.md)
 

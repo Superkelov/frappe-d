@@ -1,9 +1,19 @@
 x-customizable-image: &customizable_image
-  # By default the image used only contains the `frappe` and `erpnext` apps.
+  # By default the image only contains the Frappe framework so that custom
+  # benches can stay lean without the ERPNext app.
   # See https://github.com/frappe/frappe_docker/blob/main/docs/custom-apps.md
   # about using custom images.
-  image: ${CUSTOM_IMAGE:-frappe/erpnext}:${CUSTOM_TAG:-$ERPNEXT_VERSION}
-  pull_policy: ${PULL_POLICY:-always}
+  image: "${CUSTOM_IMAGE:-frappe/frappe}:${CUSTOM_TAG:-${FRAPPE_VERSION}}"
+  build:
+    context: .
+    dockerfile: images/production/Containerfile
+    target: frappe
+    args:
+      FRAPPE_BRANCH: ${FRAPPE_VERSION}
+      FRAPPE_PATH: ${FRAPPE_PATH:-https://github.com/frappe/frappe}
+      NODE_VERSION: ${NODE_VERSION:-20.19.2}
+      PYTHON_VERSION: ${PYTHON_VERSION:-3.11.6}
+  pull_policy: ${PULL_POLICY:-missing}
   restart: ${RESTART_POLICY:-unless-stopped}
 
 x-depends-on-configurator: &depends_on_configurator
@@ -26,20 +36,33 @@ services:
     # add redis_socketio for backward compatibility
     command:
       - >
+        set -eo pipefail;
+        if [ -n "$$BENCH_GET_APPS" ]; then
+          printf '%s\n' "$$BENCH_GET_APPS" | tr ';' '\n' |
+          while IFS= read -r app; do
+            if [ -n "$$app" ]; then
+              bench get-app $$app;
+            fi;
+          done;
+        fi;
         ls -1 apps > sites/apps.txt;
         bench set-config -g db_host $$DB_HOST;
         bench set-config -gp db_port $$DB_PORT;
+        bench set-config -g db_type postgres;
         bench set-config -g redis_cache "redis://$$REDIS_CACHE";
         bench set-config -g redis_queue "redis://$$REDIS_QUEUE";
         bench set-config -g redis_socketio "redis://$$REDIS_QUEUE";
         bench set-config -gp socketio_port $$SOCKETIO_PORT;
     environment:
-      DB_HOST: ${DB_HOST:-}
-      DB_PORT: ${DB_PORT:-}
+      BENCH_GET_APPS: ${BENCH_GET_APPS:-}
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-5432}
       REDIS_CACHE: ${REDIS_CACHE:-}
       REDIS_QUEUE: ${REDIS_QUEUE:-}
       SOCKETIO_PORT: 9000
-    depends_on: {}
+    depends_on:
+      db:
+        condition: service_healthy
     restart: on-failure
 
   backend:
@@ -90,6 +113,25 @@ services:
     platform: linux/amd64
     command: bench schedule
 
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?No db password set}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+    volumes:
+      - db-data:/var/lib/postgresql/data
+
 # ERPNext requires local assets access (Frappe does not)
 volumes:
   sites:
+  db-data:
