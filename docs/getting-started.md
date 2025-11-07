@@ -36,13 +36,10 @@ The base compose file includes these essential services:
 - **backend** - Werkzeug development server for dynamic content processing
 - **frontend** - Nginx reverse proxy that serves static assets and routes requests
 - **websocket** - Node.js server running Socket.IO for real-time communications
-- **queue-short/long** - Python workers using RQ (Redis Queue) for asynchronous background job processing
-- **scheduler** - Python service that runs scheduled tasks using the schedule library
-
-Additional services are added through compose overrides:
-
-- **db** - MariaDB or PostgreSQL database server (via `compose.mariadb.yaml` or `compose.postgres.yaml`)
-- **redis-cache/queue** - Redis instances for caching and job queues (via `compose.redis.yaml`)
+- **queue-short/long** - Python workers using RQ (Redis Queue) for asynchronous background job processing (requires Redis)
+- **scheduler** - Python service that runs scheduled tasks using the schedule library (requires Redis)
+- **db** - PostgreSQL 16 database server with health checks enabled
+- **redis-cache/queue** - Redis instances for caching, websockets, and job queues (now part of the base stack)
 
 ### How Services Work Together
 
@@ -53,7 +50,7 @@ User Request
     ↓
 [backend (Werkzeug)] → Dynamic content processing
     ↓                    ↓
-[db (MariaDB)]      [redis-cache]
+[db (PostgreSQL 16)]      [redis-cache]
 
 Background Tasks:
 [scheduler] → [redis-queue] → [queue-short/long workers]
@@ -79,7 +76,7 @@ Four predefined Dockerfiles are available, each serving different use cases:
 - **images/bench/** - Sets up only the Bench CLI for development or debugging; does not include runtime services
 - **images/custom/** - Multi-purpose Python backend built from plain Python base image; installs apps from `apps.json`; suitable for **production** and testing; ideal when you need control over Python/Node versions
 - **images/layered/** - Same final contents as `custom` but based on prebuilt images from Docker Hub; faster builds for production when using Frappe-managed dependency versions
-- **images/production/** - Installs only Frappe and ERPNext (not customizable with `apps.json`); best for **quick starts or exploration**; for real deployments, use `custom` or `layered`
+- **images/production/** - Installs the Frappe framework by default with an optional ERPNext stage (not customizable with `apps.json`); best for **quick starts or exploration**; for real deployments, use `custom` or `layered`
 
 > **Note:** For detailed build arguments and advanced configuration options, see [docs/container-setup/01-overview.md](container-setup/01-overview.md).
 
@@ -87,10 +84,11 @@ Four predefined Dockerfiles are available, each serving different use cases:
 
 Docker Compose "overrides" that extend the base compose.yaml for different scenarios:
 
-- **compose.mariadb.yaml** - Adds MariaDB database service
-- **compose.redis.yaml** - Adds Redis caching service
+- **compose.postgres.yaml** - Override PostgreSQL defaults (ports, usernames, database names)
+- **compose.redis.yaml** - Legacy helper for older stacks; no longer required because Redis is bundled by default
 - **compose.proxy.yaml** - Adds Traefik reverse proxy for multi-site hosting
 - **compose.https.yaml** - Adds SSL/TLS certificate management
+- **compose.mariadb*.yaml** - Legacy overrides that reintroduce MariaDB for historical projects (not recommended)
 
 ### 📁 development/ - Dev Environment
 
@@ -165,22 +163,35 @@ bench --site mysite.com console
 
 ## Development Workflow
 
-### Quick Test Setup (pwd.yml)
+### Quick Test Setup (PostgreSQL compose)
 
-Perfect for evaluating Frappe Docker without any local setup:
+Perfect for evaluating the Postgres-first stack locally:
 
 ```bash
 git clone https://github.com/frappe/frappe_docker
 cd frappe_docker
-docker compose -f pwd.yml up -d
+cp example.env .env
+# Edit .env and set DB_PASSWORD (and optional POSTGRES_* overrides)
 
-# Monitor site creation (takes ~5 minutes)
-docker compose -f pwd.yml logs -f create-site
+# Build (first run) and start core services (Frappe + PostgreSQL 16 + Redis)
+docker compose up --build -d
+# Subsequent runs can omit --build once the local image exists
 
-# Access once "create-site" container exits successfully
-# Visit http://localhost:8080
-# Login: Administrator / admin
+# Create a site targeting PostgreSQL
+docker compose exec backend bench new-site site.local \
+  --db-type postgres \
+  --admin-password admin \
+  --db-root-username "${POSTGRES_USER:-postgres}" \
+  --db-root-password "$DB_PASSWORD"
+
+# Add site.local to /etc/hosts and open http://site.local:8080
 ```
+
+> Legacy note: [`pwd.yml`](../pwd.yml) still provisions an ERPNext + MariaDB demo stack for backwards compatibility. Prefer `compose.yaml` for clean Frappe + PostgreSQL deployments.
+
+> **Private Git hosts:** Populate `BENCH_GIT_CREDENTIALS` in `.env` with `.netrc` formatted entries (for example, `machine gitlab.com login oauth2 password <token>`) so the configurator can authenticate before running `bench get-app`.
+
+> **Reminder:** Production images intentionally omit Honcho's `Procfile`. Run and manage processes with Docker Compose (e.g., `docker compose up`, `docker compose restart backend`) instead of `bench start`.
 
 ### Full Development Setup
 
@@ -254,7 +265,7 @@ bench uninstall-app <app_name>  # Remove app from site
 
 # Debugging
 bench console  # Python REPL with Frappe context
-bench mariadb  # Database console
+docker compose exec db psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-frappe}"  # Database console
 ```
 
 ## Platform Notes
@@ -263,7 +274,7 @@ bench mariadb  # Database console
 
 - Enable Docker Desktop's Rosetta emulation for initial builds when running on Apple Silicon with x86-only images.
 - Prefer published multi-arch images (`frappe/bench`, `frappe/erpnext`) or build locally with `docker buildx bake --set *.platform=linux/amd64,linux/arm64` to cover both architectures in one pass.
-- When using `pwd.yml`, export `DOCKER_DEFAULT_PLATFORM=linux/arm64` (or select the provided compose profile) to avoid unexpected emulation.
+- When pinning x86 images on ARM64, export `DOCKER_DEFAULT_PLATFORM=linux/amd64` (or select the provided compose profile) to avoid unexpected emulation.
 - Keep bind mounts under your user home directory and apply `:cached` or `:delegated` consistency flags for better performance on macOS.
 
 ## File Locations and Access
@@ -272,7 +283,7 @@ bench mariadb  # Database console
 
 ```bash
 # Enter backend container shell
-docker compose -f pwd.yml exec backend bash
+docker compose exec backend bash
 
 # Navigate to bench directory
 cd /home/frappe/frappe-bench/
@@ -288,35 +299,35 @@ cd /home/frappe/frappe-bench/
 
 ```bash
 # Copy entire app from container to host
-docker compose -f pwd.yml cp backend:/home/frappe/frappe-bench/apps/my_app ./local-apps/
+docker compose cp backend:/home/frappe/frappe-bench/apps/my_app ./local-apps/
 
 # Copy logs
-docker compose -f pwd.yml cp backend:/home/frappe/frappe-bench/logs/ ./debug-logs/
+docker compose cp backend:/home/frappe/frappe-bench/logs/ ./debug-logs/
 
 # Copy site files
-docker compose -f pwd.yml cp backend:/home/frappe/frappe-bench/sites/mysite.com ./backup/
+docker compose cp backend:/home/frappe/frappe-bench/sites/mysite.com ./backup/
 ```
 
 ### Useful Container Commands
 
 ```bash
 # List all sites
-docker compose -f pwd.yml exec backend bench list-sites
+docker compose exec backend bench list-sites
 
 # List installed apps for a site
-docker compose -f pwd.yml exec backend bench --site mysite.com list-apps
+docker compose exec backend bench --site mysite.com list-apps
 
 # View site configuration
-docker compose -f pwd.yml exec backend cat /home/frappe/frappe-bench/sites/common_site_config.json
+docker compose exec backend cat /home/frappe/frappe-bench/sites/common_site_config.json
 
 # Check logs in real-time
-docker compose -f pwd.yml logs -f backend
+docker compose logs -f backend
 
 # Execute bench command
-docker compose -f pwd.yml exec backend bench --site mysite.com console
+docker compose exec backend bench --site mysite.com console
 
 # Backup site
-docker compose -f pwd.yml exec backend bench --site mysite.com backup --with-files
+docker compose exec backend bench --site mysite.com backup --with-files
 ```
 
 ## Docker Concepts: Bind Mounts
@@ -540,24 +551,31 @@ git push origin feature/my-improvement
 
 ### 1. Quick Test (5 minutes)
 
-**Goal:** Try Frappe/ERPNext without any local setup
+**Goal:** Run a clean Frappe + PostgreSQL stack locally
 
 ```bash
-# Clone and run
+# Clone and prepare
 git clone https://github.com/frappe/frappe_docker
 cd frappe_docker
-docker compose -f pwd.yml up -d
+cp example.env .env
+# Edit .env and set DB_PASSWORD (and optional POSTGRES_* overrides)
 
-# Monitor setup progress (~5 minutes)
-docker compose -f pwd.yml logs -f create-site
+# Build (first run) and start services
+docker compose up --build -d
 
-# When complete, access:
-# URL: http://localhost:8080
-# Username: Administrator
-# Password: admin
+# Create a site using PostgreSQL
+docker compose exec backend bench new-site site.local \
+  --db-type postgres \
+  --admin-password admin \
+  --db-root-username "${POSTGRES_USER:-postgres}" \
+  --db-root-password "$DB_PASSWORD"
+
+# Access
+echo "127.0.0.1 site.local" | sudo tee -a /etc/hosts
+# Visit http://site.local:8080 and log in with Administrator / admin
 
 # Cleanup when done
-docker compose -f pwd.yml down -v
+docker compose down -v
 ```
 
 ### 2. Development Environment (15 minutes)
@@ -579,8 +597,7 @@ python installer.py
 
 # Follow prompts:
 # - Site name: development.localhost
-# - Install ERPNext: Yes
-# - Version: version-15
+# - Install ERPNext: Optional (defaults to Frappe only)
 
 # Start development server
 cd frappe-bench
@@ -638,8 +655,7 @@ bench build --app library_management
 
 # Key files:
 # - compose.yaml
-# - compose.mariadb.yaml
-# - compose.redis.yaml
+# - compose.mariadb.yaml (legacy)
 # - compose.proxy.yaml
 # - compose.https.yaml
 
@@ -647,7 +663,6 @@ bench build --app library_management
 docker compose \
   -f compose.yaml \
   -f overrides/compose.mariadb.yaml \
-  -f overrides/compose.redis.yaml \
   -f overrides/compose.https.yaml \
   up -d
 ```
@@ -862,7 +877,8 @@ Many teams use both: Frappe for back-office/admin tools, Django for customer-fac
 
 ```bash
 # Service Management
-docker compose up -d              # Start all services in background
+docker compose up --build -d      # Build image (first run) and start in background
+docker compose up -d              # Start with existing local image
 docker compose down               # Stop and remove containers
 docker compose down -v            # Stop and remove volumes (data loss!)
 docker compose restart <service>  # Restart specific service
@@ -911,7 +927,7 @@ bench clear-cache                # Clear Redis cache
 bench clear-website-cache        # Clear website route cache
 
 # Database
-bench mariadb                    # Open MariaDB console
+docker compose exec db psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-frappe}"  # PostgreSQL shell
 bench backup                     # Backup default site
 bench backup --with-files        # Backup with uploaded files
 bench restore <path>             # Restore backup
@@ -939,7 +955,7 @@ bench update                     # Update framework and apps
 | Out of disk space         | `docker system prune -a --volumes` (CAREFUL!)         |
 | Python packages missing   | `bench pip install <package>` inside container        |
 | Frontend not building     | `bench build --force`, check Node.js errors           |
-| Database connection fails | Check `common_site_config.json`, Redis/MariaDB status |
+| Database connection fails | Check `common_site_config.json`, PostgreSQL + Redis status |
 
 ### Getting Help
 

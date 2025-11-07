@@ -105,8 +105,6 @@ FROM build AS builder
 
 ARG FRAPPE_BRANCH=version-15
 ARG FRAPPE_PATH=https://github.com/frappe/frappe
-ARG ERPNEXT_REPO=https://github.com/frappe/erpnext
-ARG ERPNEXT_BRANCH=version-15
 RUN bench init \
   --frappe-branch=${FRAPPE_BRANCH} \
   --frappe-path=${FRAPPE_PATH} \
@@ -116,9 +114,45 @@ RUN bench init \
   --verbose \
   /home/frappe/frappe-bench && \
   cd /home/frappe/frappe-bench && \
-  bench get-app --branch=${ERPNEXT_BRANCH} --resolve-deps erpnext ${ERPNEXT_REPO} && \
   echo "{}" > sites/common_site_config.json && \
-  find apps -mindepth 1 -path "*/.git" | xargs rm -fr
+  find apps -mindepth 1 -path "*/.git" -prune -exec rm -fr {} +
+
+FROM builder AS builder-erpnext
+
+ARG ERPNEXT_REPO=https://github.com/frappe/erpnext
+ARG ERPNEXT_BRANCH=version-15
+RUN cd /home/frappe/frappe-bench && \
+  bench get-app --branch=${ERPNEXT_BRANCH} --resolve-deps erpnext ${ERPNEXT_REPO} && \
+  find apps -mindepth 1 -path "*/.git" -prune -exec rm -fr {} +
+
+FROM base AS frappe
+
+USER frappe
+
+RUN echo "echo \"Commands restricted in prodution container, Read FAQ before you proceed: https://frappe.io/ctr-faq\"" >> ~/.bashrc
+
+COPY --from=builder --chown=frappe:frappe /home/frappe/frappe-bench /home/frappe/frappe-bench
+
+WORKDIR /home/frappe/frappe-bench
+
+VOLUME [ \
+  "/home/frappe/frappe-bench/sites", \
+  "/home/frappe/frappe-bench/sites/assets", \
+  "/home/frappe/frappe-bench/logs" \
+]
+
+CMD [ \
+  "/home/frappe/frappe-bench/env/bin/gunicorn", \
+  "--chdir=/home/frappe/frappe-bench/sites", \
+  "--bind=0.0.0.0:8000", \
+  "--threads=4", \
+  "--workers=2", \
+  "--worker-class=gthread", \
+  "--worker-tmp-dir=/dev/shm", \
+  "--timeout=120", \
+  "--preload", \
+  "frappe.app:application" \
+]
 
 FROM base AS erpnext
 
@@ -126,7 +160,7 @@ USER frappe
 
 RUN echo "echo \"Commands restricted in prodution container, Read FAQ before you proceed: https://frappe.io/ctr-faq\"" >> ~/.bashrc
 
-COPY --from=builder --chown=frappe:frappe /home/frappe/frappe-bench /home/frappe/frappe-bench
+COPY --from=builder-erpnext --chown=frappe:frappe /home/frappe/frappe-bench /home/frappe/frappe-bench
 
 WORKDIR /home/frappe/frappe-bench
 
