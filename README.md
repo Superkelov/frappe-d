@@ -37,7 +37,7 @@ If you need a deeper architectural overview, browse the [Getting Started Guide](
    ```
 
    > **Tips:**
-   > - Pre-install apps (for example `ekgfn_core`) by filling `BENCH_GET_APPS` with commands such as `bench get-app https://gitlab.com/kz-dev/adizit/ugq/ucssf/ekgfn_core.git --branch feature/qr_egov`.
+   > - Pre-install apps (for example `ekgfn_core`) by filling `BENCH_GET_APPS` with commands such as `bench get-app https://gitlab.com/kz-dev/adizit/ugq/ucssf/ekgfn_core.git --branch feature/qr_egov`. The configurator automatically installs each fetched app into the bench's virtual environment so `bench new-site` and other commands can import it immediately.
    > - For private Git hosts, add a `.netrc` entry (e.g. `machine gitlab.com login oauth2 password <token>`) to `BENCH_GIT_CREDENTIALS` so the configurator can authenticate before cloning.
 
 4. **Build and start the Frappe stack (PostgreSQL + Redis)**

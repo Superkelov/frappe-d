@@ -53,6 +53,16 @@ services:
           done;
         fi;
         ls -1 apps > sites/apps.txt;
+        for app_path in apps/*; do
+          if [ -d "$$app_path" ]; then
+            app_name="$$(basename "$$app_path")";
+            if [ "$$app_name" != "frappe" ] && {
+              [ -f "$$app_path/pyproject.toml" ] || [ -f "$$app_path/setup.py" ];
+            }; then
+              env/bin/pip install -e "$$app_path";
+            fi;
+          fi;
+        done;
         bench set-config -g db_host $$DB_HOST;
         bench set-config -gp db_port $$DB_PORT;
         bench set-config -g db_type postgres;

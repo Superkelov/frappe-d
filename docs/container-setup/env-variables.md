@@ -27,7 +27,7 @@ Then edit `.env` and set variables according to your needs.
 
 | Variable               | Purpose                                                      | Default | Notes |
 | ---------------------- | ------------------------------------------------------------ | ------- | ----- |
-| `BENCH_GET_APPS`       | Arguments passed to `bench get-app` during configuration      | —       | Separate multiple entries with `;` or new lines |
+| `BENCH_GET_APPS`       | Arguments passed to `bench get-app` during configuration. Each fetched app is installed into the virtualenv with `pip install -e` automatically.      | —       | Separate multiple entries with `;` or new lines |
 | `BENCH_GIT_CREDENTIALS` | `.netrc` credentials written before running `bench get-app` | —       | Use for private Git hosts (e.g., GitLab personal access tokens) |
 
 ---

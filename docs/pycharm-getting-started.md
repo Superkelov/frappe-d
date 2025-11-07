@@ -11,7 +11,7 @@ This quick start guide walks through the minimum commands you need to run the Fr
    cp example.env .env
    ```
 
-3. In the new `.env` file set the database password, optional PostgreSQL username/database, and add your custom app to `BENCH_GET_APPS`. Provide Git credentials when cloning from a private host by filling `BENCH_GIT_CREDENTIALS` with `.netrc` style entries. For the app mentioned by the customer, the entry should look like this:
+3. In the new `.env` file set the database password, optional PostgreSQL username/database, and add your custom app to `BENCH_GET_APPS`. The configurator will clone each entry and `pip install -e` the app inside the bench virtualenv so commands like `bench new-site` can resolve the package. Provide Git credentials when cloning from a private host by filling `BENCH_GIT_CREDENTIALS` with `.netrc` style entries. For the app mentioned by the customer, the entry should look like this:
 
    ```dotenv
    DB_PASSWORD=your-strong-password

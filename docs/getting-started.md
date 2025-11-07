@@ -190,6 +190,8 @@ docker compose exec backend bench new-site site.local \
 > Legacy note: [`pwd.yml`](../pwd.yml) still provisions an ERPNext + MariaDB demo stack for backwards compatibility. Prefer `compose.yaml` for clean Frappe + PostgreSQL deployments.
 
 > **Private Git hosts:** Populate `BENCH_GIT_CREDENTIALS` in `.env` with `.netrc` formatted entries (for example, `machine gitlab.com login oauth2 password <token>`) so the configurator can authenticate before running `bench get-app`.
+>
+> **Custom apps:** Any repository cloned via `BENCH_GET_APPS` is automatically installed into the bench virtualenv with `pip install -e`, so `bench new-site` immediately detects its Python package.
 
 > **Reminder:** Production images intentionally omit Honcho's `Procfile`. Run and manage processes with Docker Compose (e.g., `docker compose up`, `docker compose restart backend`) instead of `bench start`.
 
