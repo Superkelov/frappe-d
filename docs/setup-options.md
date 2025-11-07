@@ -64,15 +64,14 @@ docker compose -f compose.yaml \
 docker compose --project-name <project-name> -f ~/gitops/docker-compose.yml up -d
 ```
 
-### Setup Frappe using containerized MariaDB and Redis with Letsencrypt certificates.
+### Setup Frappe using containerized MariaDB (Redis included) with Letsencrypt certificates.
 
-In this case make sure you've set `LETSENCRYPT_EMAIL` and `SITES` environment variables are set or certificates won't work.
+In this case make sure you've set `LETSENCRYPT_EMAIL` and `SITES` environment variables are set or certificates won't work. Redis ships with the base `compose.yaml`, so no extra override is required.
 
 ```sh
 # Generate YAML
 docker compose -f compose.yaml \
   -f overrides/compose.mariadb.yaml \
-  -f overrides/compose.redis.yaml \
   -f overrides/compose.https.yaml \
   config > ~/gitops/docker-compose.yml
 
@@ -80,15 +79,14 @@ docker compose -f compose.yaml \
 docker compose --project-name <project-name> -f ~/gitops/docker-compose.yml up -d
 ```
 
-### Setup ERPNext using containerized MariaDB and Redis with Letsencrypt certificates.
+### Setup ERPNext using containerized MariaDB (Redis included) with Letsencrypt certificates.
 
-In this case make sure you've set `LETSENCRYPT_EMAIL` and `SITES` environment variables are set or certificates won't work.
+In this case make sure you've set `LETSENCRYPT_EMAIL` and `SITES` environment variables are set or certificates won't work. Redis ships with the base `compose.yaml`, so no extra override is required.
 
 ```sh
 # Generate YAML
 docker compose -f compose.yaml \
   -f overrides/compose.mariadb.yaml \
-  -f overrides/compose.redis.yaml \
   -f overrides/compose.https.yaml \
   config > ~/gitops/docker-compose.yml
 

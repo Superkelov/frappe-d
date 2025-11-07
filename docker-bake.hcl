@@ -59,7 +59,7 @@ target "bench-test" {
 # Base for all other targets
 
 group "default" {
-    targets = ["erpnext", "base", "build"]
+    targets = ["frappe", "erpnext", "base", "build"]
 }
 
 function "tag" {
@@ -79,13 +79,20 @@ function "tag" {
 target "default-args" {
     args = {
         FRAPPE_PATH = "${FRAPPE_REPO}"
-        ERPNEXT_PATH = "${ERPNEXT_REPO}"
         BENCH_REPO = "${BENCH_REPO}"
         FRAPPE_BRANCH = "${FRAPPE_VERSION}"
         ERPNEXT_BRANCH = "${ERPNEXT_VERSION}"
         PYTHON_VERSION = "${PYTHON_VERSION}"
         NODE_VERSION = "${NODE_VERSION}"
     }
+}
+
+target "frappe" {
+    inherits = ["default-args"]
+    context = "."
+    dockerfile = "images/production/Containerfile"
+    target = "frappe"
+    tags = tag("frappe", "${FRAPPE_VERSION}")
 }
 
 target "erpnext" {

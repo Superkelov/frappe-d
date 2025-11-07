@@ -157,10 +157,11 @@ Create a yaml file called `erpnext-one.yaml` in `~/gitops` directory:
 docker compose --project-name erpnext-one \
   --env-file ~/gitops/erpnext-one.env \
   -f compose.yaml \
-  -f overrides/compose.redis.yaml \
   -f overrides/compose.multi-bench.yaml \
   -f overrides/compose.multi-bench-ssl.yaml config > ~/gitops/erpnext-one.yaml
 ```
+
+> Redis services ship with `compose.yaml`; keep the legacy `compose.redis.yaml` override disabled unless you are experimenting with custom Redis settings.
 
 For LAN setup do not override `compose.multi-bench-ssl.yaml`.
 
@@ -218,7 +219,6 @@ Create a yaml file called `erpnext-two.yaml` in `~/gitops` directory:
 docker compose --project-name erpnext-two \
   --env-file ~/gitops/erpnext-two.env \
   -f compose.yaml \
-  -f overrides/compose.redis.yaml \
   -f overrides/compose.multi-bench.yaml \
   -f overrides/compose.multi-bench-ssl.yaml config > ~/gitops/erpnext-two.yaml
 ```
