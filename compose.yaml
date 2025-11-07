@@ -1,8 +1,7 @@
+version: "3.9"
+
+# ---------- BASE IMAGES / COMMON BLOCKS ----------
 x-customizable-image: &customizable_image
-  # By default the image only contains the Frappe framework so that custom
-  # benches can stay lean without the ERPNext app.
-  # See https://github.com/frappe/frappe_docker/blob/main/docs/custom-apps.md
-  # about using custom images.
   image: "${CUSTOM_IMAGE:-frappe/frappe}:${CUSTOM_TAG:-${FRAPPE_VERSION}}"
   build:
     context: .
@@ -18,16 +17,19 @@ x-customizable-image: &customizable_image
 
 x-runtime-service: &runtime_service
   <<: *customizable_image
+  platform: linux/amd64
   environment:
+    # DB (будут доступны в контейнере как переменные окружения)
     DB_HOST: ${DB_HOST:-db}
     DB_PORT: ${DB_PORT:-5432}
     DB_PASSWORD: ${DB_PASSWORD:?No db password set}
     POSTGRES_USER: ${POSTGRES_USER:-postgres}
+    # psql (опционально)
     PGHOST: ${DB_HOST:-db}
     PGPORT: ${DB_PORT:-5432}
     PGUSER: ${POSTGRES_USER:-postgres}
     PGPASSWORD: ${DB_PASSWORD:?No db password set}
-    PGPASSFILE: /home/frappe/frappe-bench/sites/.pgpass
+    PGPASSFILE: /home/frappe/.pgpass
   depends_on:
     configurator:
       condition: service_completed_successfully
@@ -35,56 +37,61 @@ x-runtime-service: &runtime_service
       condition: service_healthy
     redis-queue:
       condition: service_healthy
+    redis-socketio:
+      condition: service_healthy
   volumes:
     - sites:/home/frappe/frappe-bench/sites
+    - apps:/home/frappe/frappe-bench/apps
+    - env:/home/frappe/frappe-bench/env
 
+# --------------------------- SERVICES ---------------------------
 services:
+  # 1) Конфигурирует bench и кладёт ~/.pgpass
   configurator:
     <<: *customizable_image
     platform: linux/amd64
-    entrypoint:
-      - bash
-      - -c
-    # add redis_socketio for backward compatibility
-    command:
-      - >
-        set -eo pipefail;
-        if [ -n "$$BENCH_GIT_CREDENTIALS" ]; then
-          NETRC_PATH="$$HOME/.netrc";
-          printf '%s\n' "$$BENCH_GIT_CREDENTIALS" > "$$NETRC_PATH";
-          chmod 600 "$$NETRC_PATH";
-        fi;
-        if [ -n "$$BENCH_GET_APPS" ]; then
-          printf '%s\n' "$$BENCH_GET_APPS" | tr ';' '\n' |
-          while IFS= read -r app; do
-            if [ -n "$$app" ]; then
-              bench get-app $$app;
-            fi;
-          done;
-        fi;
-        ls -1 apps > sites/apps.txt;
-        for app_path in apps/*; do
-          if [ -d "$$app_path" ]; then
-            app_name="$$(basename "$$app_path")";
-            if [ "$$app_name" != "frappe" ] && {
-              [ -f "$$app_path/pyproject.toml" ] || [ -f "$$app_path/setup.py" ];
-            }; then
-              env/bin/pip install -e "$$app_path";
-            fi;
-          fi;
-        done;
-        if [ -n "$$DB_PASSWORD" ]; then
-          PGPASS_PATH="sites/.pgpass";
-          printf '%s:%s:%s:%s:%s\n' "$$DB_HOST" "$$DB_PORT" "*" "$$POSTGRES_USER" "$$DB_PASSWORD" > "$$PGPASS_PATH";
-          chmod 600 "$$PGPASS_PATH";
-        fi;
-        bench set-config -g db_host $$DB_HOST;
-        bench set-config -gp db_port $$DB_PORT;
-        bench set-config -g db_type postgres;
-        bench set-config -g redis_cache "redis://$$REDIS_CACHE";
-        bench set-config -g redis_queue "redis://$$REDIS_QUEUE";
-        bench set-config -g redis_socketio "redis://$$REDIS_QUEUE";
-        bench set-config -gp socketio_port $$SOCKETIO_PORT;
+    entrypoint: ["bash","-lc"]
+    command: |
+      set -euo pipefail
+
+      # .netrc для приватных реп
+      if [ -n "$$BENCH_GIT_CREDENTIALS" ]; then
+        printf '%s\n' "$$BENCH_GIT_CREDENTIALS" > "$$HOME/.netrc"
+        chmod 600 "$$HOME/.netrc"
+      fi
+
+      # bench get-app из списка через ;  (каждый элемент — ровно то, что идёт после "bench get-app")
+      if [ -n "$$BENCH_GET_APPS" ]; then
+        printf '%s\n' "$$BENCH_GET_APPS" | tr ';' '\n' | while IFS= read -r app; do
+          [ -n "$$app" ] && bench get-app $$app
+        done
+      fi
+
+      # локальные editable инсталлы (если apps/* лежат рядом)
+      ls -1 apps > sites/apps.txt || true
+      for app_path in apps/*; do
+        if [ -d "$$app_path" ]; then
+          app_name="$$(basename "$$app_path")"
+          if [ "$$app_name" != "frappe" ] && { [ -f "$$app_path/pyproject.toml" ] || [ -f "$$app_path/setup.py" ]; }; then
+            env/bin/pip install -e "$$app_path"
+          fi
+        fi
+      done
+
+      # ~/.pgpass (psql ищет именно здесь)
+      if [ -n "$$DB_PASSWORD" ]; then
+        printf '%s:%s:*:%s:%s\n' "$$DB_HOST" "$$DB_PORT" "$$POSTGRES_USER" "$$DB_PASSWORD" > "$$HOME/.pgpass"
+        chmod 600 "$$HOME/.pgpass"
+      fi
+
+      # bench глобальные настройки
+      bench set-config -g db_type postgres
+      bench set-config -g db_host "$$DB_HOST"
+      bench set-config -gp db_port "$$DB_PORT"
+      bench set-config -g redis_cache "redis://$${REDIS_CACHE:-redis-cache:6379}"
+      bench set-config -g redis_queue "redis://$${REDIS_QUEUE:-redis-queue:6379}"
+      bench set-config -g redis_socketio "redis://$${REDIS_SOCKETIO:-redis-socketio:6379}"
+      bench set-config -gp socketio_port "$${SOCKETIO_PORT:-9000}"
     environment:
       BENCH_GET_APPS: ${BENCH_GET_APPS:-}
       BENCH_GIT_CREDENTIALS: ${BENCH_GIT_CREDENTIALS:-}
@@ -92,13 +99,9 @@ services:
       DB_PORT: ${DB_PORT:-5432}
       DB_PASSWORD: ${DB_PASSWORD:?No db password set}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      PGHOST: ${DB_HOST:-db}
-      PGPORT: ${DB_PORT:-5432}
-      PGUSER: ${POSTGRES_USER:-postgres}
-      PGPASSWORD: ${DB_PASSWORD:?No db password set}
-      PGPASSFILE: /home/frappe/frappe-bench/sites/.pgpass
       REDIS_CACHE: ${REDIS_CACHE:-redis-cache:6379}
       REDIS_QUEUE: ${REDIS_QUEUE:-redis-queue:6379}
+      REDIS_SOCKETIO: ${REDIS_SOCKETIO:-redis-socketio:6379}
       SOCKETIO_PORT: 9000
     depends_on:
       db:
@@ -107,19 +110,59 @@ services:
         condition: service_healthy
       redis-queue:
         condition: service_healthy
+      redis-socketio:
+        condition: service_healthy
     volumes:
       - sites:/home/frappe/frappe-bench/sites
+      - apps:/home/frappe/frappe-bench/apps
     restart: on-failure
 
-  backend:
-    <<: *runtime_service
-    platform: linux/amd64
-
-  frontend:
+  # 2) Создаёт сайт, если его ещё нет
+  site-creator:
     <<: *customizable_image
     platform: linux/amd64
-    command:
-      - nginx-entrypoint.sh
+    entrypoint: ["bash","-lc"]
+    command: |
+      set -euo pipefail
+      if [ ! -d "sites/$$SITE_NAME" ]; then
+        bench new-site "$$SITE_NAME" \
+          --no-mariadb-socket \
+          --db-type postgres \
+          --db-host "$$DB_HOST" --db-port "$$DB_PORT" \
+          --db-root-username "$$POSTGRES_USER" --db-root-password "$$DB_PASSWORD" \
+          --admin-password "$$ADMIN_PASSWORD"
+        if [ -n "$$INSTALL_APPS" ]; then
+          for app in $$INSTALL_APPS; do
+            bench --site "$$SITE_NAME" install-app $$app
+          done
+        fi
+      fi
+    environment:
+      SITE_NAME: ${SITE_NAME:?Set SITE_NAME like devugq.geology.kz}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD}
+      INSTALL_APPS: ${INSTALL_APPS:-}
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_PASSWORD: ${DB_PASSWORD:?No db password set}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+    depends_on:
+      db:
+        condition: service_healthy
+      configurator:
+        condition: service_completed_successfully
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+
+  # 3) Backend (WSGI) — используем bench serve (без gunicorn)
+  backend:
+    <<: *runtime_service
+    command: ["bash","-lc","bench serve --port 8000 --noreload"]
+
+  # 4) Frontend (nginx) — правильный образ с nginx-entrypoint.sh
+  frontend:
+    image: "frappe/erpnext-nginx:${FRAPPE_VERSION}"
+    platform: linux/amd64
+    restart: unless-stopped
     environment:
       BACKEND: backend:8000
       SOCKETIO: websocket:9000
@@ -130,61 +173,64 @@ services:
       PROXY_READ_TIMEOUT: ${PROXY_READ_TIMEOUT:-120}
       CLIENT_MAX_BODY_SIZE: ${CLIENT_MAX_BODY_SIZE:-50m}
     volumes:
-      - sites:/home/frappe/frappe-bench/sites
+      # nginx-образ ожидает путь /var/www/html/sites
+      - sites:/var/www/html/sites
     depends_on:
       - backend
       - websocket
+    ports:
+      - "${HTTP_PUBLISH_PORT:-8080}:8080"
 
+  # 5) Socket.IO
   websocket:
     <<: *runtime_service
-    platform: linux/amd64
-    command:
-      - node
-      - /home/frappe/frappe-bench/apps/frappe/socketio.js
+    command: ["node","/home/frappe/frappe-bench/apps/frappe/socketio.js"]
 
+  # 6) Workers
   queue-short:
     <<: *runtime_service
-    platform: linux/amd64
-    command: bench worker --queue short,default
+    command: ["bench","worker","--queue","short,default"]
 
   queue-long:
     <<: *runtime_service
-    platform: linux/amd64
-    command: bench worker --queue long,default,short
+    command: ["bench","worker","--queue","long,default,short"]
 
+  # 7) Scheduler
   scheduler:
     <<: *runtime_service
-    platform: linux/amd64
-    command: bench schedule
+    command: ["bench","schedule"]
 
+  # 8) Redis
   redis-cache:
     image: redis:6.2-alpine
     restart: unless-stopped
     healthcheck:
-      test:
-        - CMD
-        - redis-cli
-        - ping
-      start_period: 5s
+      test: ["CMD","redis-cli","ping"]
       interval: 5s
-      timeout: 5s
-      retries: 5
+      timeout: 3s
+      retries: 15
 
   redis-queue:
     image: redis:6.2-alpine
     restart: unless-stopped
     healthcheck:
-      test:
-        - CMD
-        - redis-cli
-        - ping
-      start_period: 5s
+      test: ["CMD","redis-cli","ping"]
       interval: 5s
-      timeout: 5s
-      retries: 5
+      timeout: 3s
+      retries: 15
     volumes:
       - redis-queue-data:/data
 
+  redis-socketio:
+    image: redis:6.2-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD","redis-cli","ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+
+  # 9) Postgres 16
   db:
     image: postgres:16
     restart: unless-stopped
@@ -193,9 +239,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-postgres}
     healthcheck:
-      test:
-        - CMD-SHELL
-        - pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"
+      test: ["CMD-SHELL","pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -203,8 +247,10 @@ services:
     volumes:
       - db-data:/var/lib/postgresql/data
 
-# ERPNext requires local assets access (Frappe does not)
+# --------------------------- VOLUMES ---------------------------
 volumes:
   sites:
+  apps:
+  env:
   db-data:
   redis-queue-data:

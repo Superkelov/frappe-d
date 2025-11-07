@@ -1,225 +1,132 @@
-version: "3"
+version: "3.8"
 
 services:
-  backend:
-    image: frappe/erpnext:v15.87.0
-    networks:
-      - frappe_network
-    deploy:
-      restart_policy:
-        condition: on-failure
-    volumes:
-      - sites:/home/frappe/frappe-bench/sites
-      - logs:/home/frappe/frappe-bench/logs
-    environment:
-      DB_HOST: db
-      DB_PORT: "3306"
-      MYSQL_ROOT_PASSWORD: admin
-      MARIADB_ROOT_PASSWORD: admin
-
-  configurator:
-    image: frappe/erpnext:v15.87.0
-    networks:
-      - frappe_network
-    deploy:
-      restart_policy:
-        condition: none
-    entrypoint:
-      - bash
-      - -c
-    command:
-      - >
-        ls -1 apps > sites/apps.txt;
-        bench set-config -g db_host $$DB_HOST;
-        bench set-config -gp db_port $$DB_PORT;
-        bench set-config -g redis_cache "redis://$$REDIS_CACHE";
-        bench set-config -g redis_queue "redis://$$REDIS_QUEUE";
-        bench set-config -g redis_socketio "redis://$$REDIS_QUEUE";
-        bench set-config -gp socketio_port $$SOCKETIO_PORT;
-    environment:
-      DB_HOST: db
-      DB_PORT: "3306"
-      REDIS_CACHE: redis-cache:6379
-      REDIS_QUEUE: redis-queue:6379
-      SOCKETIO_PORT: "9000"
-    volumes:
-      - sites:/home/frappe/frappe-bench/sites
-      - logs:/home/frappe/frappe-bench/logs
-
-  create-site:
-    image: frappe/erpnext:v15.87.0
-    networks:
-      - frappe_network
-    deploy:
-      restart_policy:
-        condition: none
-    volumes:
-      - sites:/home/frappe/frappe-bench/sites
-      - logs:/home/frappe/frappe-bench/logs
-    entrypoint:
-      - bash
-      - -c
-    command:
-      - >
-        wait-for-it -t 120 db:3306;
-        wait-for-it -t 120 redis-cache:6379;
-        wait-for-it -t 120 redis-queue:6379;
-        export start=`date +%s`;
-        until [[ -n `grep -hs ^ sites/common_site_config.json | jq -r ".db_host // empty"` ]] && \
-          [[ -n `grep -hs ^ sites/common_site_config.json | jq -r ".redis_cache // empty"` ]] && \
-          [[ -n `grep -hs ^ sites/common_site_config.json | jq -r ".redis_queue // empty"` ]];
-        do
-          echo "Waiting for sites/common_site_config.json to be created";
-          sleep 5;
-          if (( `date +%s`-start > 120 )); then
-            echo "could not find sites/common_site_config.json with required keys";
-            exit 1
-          fi
-        done;
-        echo "sites/common_site_config.json found";
-        bench new-site --mariadb-user-host-login-scope='%' --admin-password=admin --db-root-username=root --db-root-password=admin --install-app erpnext --set-default frontend;
-
   db:
-    image: mariadb:10.6
-    networks:
-      - frappe_network
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?No db password set}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
     healthcheck:
-      test: mysqladmin ping -h localhost --password=admin
-      interval: 1s
+      test: ["CMD-SHELL","pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
       retries: 20
-    deploy:
-      restart_policy:
-        condition: on-failure
-    command:
-      - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_unicode_ci
-      - --skip-character-set-client-handshake
-      - --skip-innodb-read-only-compressed # Temporary fix for MariaDB 10.6
-    environment:
-      MYSQL_ROOT_PASSWORD: admin
-      MARIADB_ROOT_PASSWORD: admin
     volumes:
-      - db-data:/var/lib/mysql
-
-  frontend:
-    image: frappe/erpnext:v15.87.0
-    networks:
-      - frappe_network
-    depends_on:
-      - websocket
-    deploy:
-      restart_policy:
-        condition: on-failure
-    command:
-      - nginx-entrypoint.sh
-    environment:
-      BACKEND: backend:8000
-      FRAPPE_SITE_NAME_HEADER: frontend
-      SOCKETIO: websocket:9000
-      UPSTREAM_REAL_IP_ADDRESS: 127.0.0.1
-      UPSTREAM_REAL_IP_HEADER: X-Forwarded-For
-      UPSTREAM_REAL_IP_RECURSIVE: "off"
-      PROXY_READ_TIMEOUT: 120
-      CLIENT_MAX_BODY_SIZE: 50m
-    volumes:
-      - sites:/home/frappe/frappe-bench/sites
-      - logs:/home/frappe/frappe-bench/logs
-    ports:
-      - "8080:8080"
-
-  queue-long:
-    image: frappe/erpnext:v15.87.0
-    networks:
-      - frappe_network
-    deploy:
-      restart_policy:
-        condition: on-failure
-    command:
-      - bench
-      - worker
-      - --queue
-      - long,default,short
-    volumes:
-      - sites:/home/frappe/frappe-bench/sites
-      - logs:/home/frappe/frappe-bench/logs
-    environment:
-      FRAPPE_REDIS_CACHE: redis://redis-cache:6379
-      FRAPPE_REDIS_QUEUE: redis://redis-queue:6379
-
-  queue-short:
-    image: frappe/erpnext:v15.87.0
-    networks:
-      - frappe_network
-    deploy:
-      restart_policy:
-        condition: on-failure
-    command:
-      - bench
-      - worker
-      - --queue
-      - short,default
-    volumes:
-      - sites:/home/frappe/frappe-bench/sites
-      - logs:/home/frappe/frappe-bench/logs
-    environment:
-      FRAPPE_REDIS_CACHE: redis://redis-cache:6379
-      FRAPPE_REDIS_QUEUE: redis://redis-queue:6379
-
-  redis-queue:
-    image: redis:6.2-alpine
-    networks:
-      - frappe_network
-    deploy:
-      restart_policy:
-        condition: on-failure
-    volumes:
-      - redis-queue-data:/data
+      - db-data:/var/lib/postgresql/data
 
   redis-cache:
     image: redis:6.2-alpine
-    networks:
-      - frappe_network
-    deploy:
-      restart_policy:
-        condition: on-failure
+    healthcheck: { test: ["CMD","redis-cli","ping"], interval: 5s, timeout: 3s, retries: 15 }
 
-  scheduler:
-    image: frappe/erpnext:v15.87.0
-    networks:
-      - frappe_network
-    deploy:
-      restart_policy:
-        condition: on-failure
-    command:
-      - bench
-      - schedule
+  redis-queue:
+    image: redis:6.2-alpine
+    healthcheck: { test: ["CMD","redis-cli","ping"], interval: 5s, timeout: 3s, retries: 15 }
+    volumes: [ "redis-queue-data:/data" ]
+
+  redis-socketio:
+    image: redis:6.2-alpine
+    healthcheck: { test: ["CMD","redis-cli","ping"], interval: 5s, timeout: 3s, retries: 15 }
+
+  configurator:
+    image: "frappe/frappe:${FRAPPE_VERSION}"
+    entrypoint: ["bash","-lc"]
+    command: |
+      set -euo pipefail
+      if [ -n "$$DB_PASSWORD" ]; then
+        printf '%s:%s:*:%s:%s\n' "$$DB_HOST" "$$DB_PORT" "$$POSTGRES_USER" "$$DB_PASSWORD" > "$$HOME/.pgpass"
+        chmod 600 "$$HOME/.pgpass"
+      fi
+      bench set-config -g db_type postgres
+      bench set-config -g db_host "$$DB_HOST"
+      bench set-config -gp db_port "$$DB_PORT"
+      bench set-config -g redis_cache "redis://$${REDIS_CACHE:-redis-cache:6379}"
+      bench set-config -g redis_queue "redis://$${REDIS_QUEUE:-redis-queue:6379}"
+      bench set-config -g redis_socketio "redis://$${REDIS_SOCKETIO:-redis-socketio:6379}"
+      bench set-config -gp socketio_port "$${SOCKETIO_PORT:-9000}"
+    environment:
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_PASSWORD: ${DB_PASSWORD:?No db password set}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
     volumes:
       - sites:/home/frappe/frappe-bench/sites
-      - logs:/home/frappe/frappe-bench/logs
+
+  site-creator:
+    image: "frappe/frappe:${FRAPPE_VERSION}"
+    entrypoint: ["bash","-lc"]
+    command: |
+      set -euo pipefail
+      if [ ! -d "sites/$$SITE_NAME" ]; then
+        bench new-site "$$SITE_NAME" \
+          --no-mariadb-socket \
+          --db-type postgres \
+          --db-host "$$DB_HOST" --db-port "$$DB_PORT" \
+          --db-root-username "$$POSTGRES_USER" --db-root-password "$$DB_PASSWORD" \
+          --admin-password "$$ADMIN_PASSWORD"
+      fi
+    environment:
+      SITE_NAME: ${SITE_NAME:?Set SITE_NAME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD}
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_PASSWORD: ${DB_PASSWORD:?No db password set}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+    depends_on:
+      db: { condition: service_healthy }
+      configurator: { condition: service_completed_successfully }
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+
+  backend:
+    image: "frappe/frappe:${FRAPPE_VERSION}"
+    environment:
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_PASSWORD: ${DB_PASSWORD:?No db password set}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+    command: ["bash","-lc","bench serve --port 8000 --noreload"]
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
 
   websocket:
-    image: frappe/erpnext:v15.87.0
-    networks:
-      - frappe_network
-    deploy:
-      restart_policy:
-        condition: on-failure
-    command:
-      - node
-      - /home/frappe/frappe-bench/apps/frappe/socketio.js
-    environment:
-      FRAPPE_REDIS_CACHE: redis://redis-cache:6379
-      FRAPPE_REDIS_QUEUE: redis://redis-queue:6379
+    image: "frappe/frappe:${FRAPPE_VERSION}"
+    command: ["node","/home/frappe/frappe-bench/apps/frappe/socketio.js"]
     volumes:
       - sites:/home/frappe/frappe-bench/sites
-      - logs:/home/frappe/frappe-bench/logs
+
+  queue-short:
+    image: "frappe/frappe:${FRAPPE_VERSION}"
+    command: ["bench","worker","--queue","short,default"]
+    volumes: [ "sites:/home/frappe/frappe-bench/sites" ]
+
+  queue-long:
+    image: "frappe/frappe:${FRAPPE_VERSION}"
+    command: ["bench","worker","--queue","long,default,short"]
+    volumes: [ "sites:/home/frappe/frappe-bench/sites" ]
+
+  scheduler:
+    image: "frappe/frappe:${FRAPPE_VERSION}"
+    command: ["bench","schedule"]
+    volumes: [ "sites:/home/frappe/frappe-bench/sites" ]
+
+  frontend:
+    image: "frappe/erpnext-nginx:${FRAPPE_VERSION}"
+    environment:
+      BACKEND: backend:8000
+      SOCKETIO: websocket:9000
+      FRAPPE_SITE_NAME_HEADER: ${FRAPPE_SITE_NAME_HEADER:-$$host}
+      PROXY_READ_TIMEOUT: ${PROXY_READ_TIMEOUT:-120}
+      CLIENT_MAX_BODY_SIZE: ${CLIENT_MAX_BODY_SIZE:-50m}
+    depends_on:
+      - backend
+      - websocket
+    ports:
+      - "${HTTP_PUBLISH_PORT:-8080}:8080"
+    volumes:
+      - sites:/var/www/html/sites
 
 volumes:
+  sites:
   db-data:
   redis-queue-data:
-  sites:
-  logs:
-
-networks:
-  frappe_network:
-    driver: bridge
