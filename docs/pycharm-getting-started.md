@@ -22,6 +22,8 @@ This quick start guide walks through the minimum commands you need to run the Fr
    ```
 
    > **Tip:** PyCharm has first-class support for editing `.env` files, so you can rely on IntelliJ's "Open in Editor" action from the terminal output. Remember to keep tokens secret—PyCharm's `.env` support hides them from VCS by default.
+   >
+   > **Postgres automation:** During startup the configurator writes a `.pgpass` file and exports `PG*` variables so future `bench` commands (including `bench new-site`) connect to PostgreSQL without asking for the superuser password.
 
 ## 2. Start the stack with PostgreSQL 16
 

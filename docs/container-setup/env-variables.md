@@ -39,7 +39,9 @@ Then edit `.env` and set variables according to your needs.
 | `DB_PASSWORD`              | Database root user password               | 123                                  | Always (unless using secrets file) |
 | `DB_PASSWORD_SECRETS_FILE` | Path to file containing database password | —                                    | Setup mariadb-secrets overrider    |
 | `DB_HOST`                  | Database hostname or IP                   | `db` (service name)                  | Only if using external database    |
-| `DB_PORT`                  | Database port                             | `3306` (MariaDB) / `5432` (Postgres) | Only if using external database    |
+| `DB_PORT`                  | Database port                             | `5432` (Postgres)                    | Only if using external database    |
+
+The configurator writes a PostgreSQL [`.pgpass`](https://www.postgresql.org/docs/current/libpq-pgpass.html) file at `sites/.pgpass` using `DB_HOST`, `DB_PORT`, `POSTGRES_USER`, and `DB_PASSWORD`. Every bench container sets `PGPASSFILE`, `PGHOST`, `PGPORT`, `PGUSER`, and `PGPASSWORD` so interactive `bench` commands connect to PostgreSQL without prompting for credentials.
 
 ---
 

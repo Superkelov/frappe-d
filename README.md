@@ -59,7 +59,7 @@ If you need a deeper architectural overview, browse the [Getting Started Guide](
      --db-root-password "$DB_PASSWORD"
    ```
 
-   Replace passwords and names as desired. The command seeds PostgreSQL, creates `sites/site.local`, and registers it as the default site.
+   Replace passwords and names as desired. Docker Compose injects the PostgreSQL credentials (`DB_PASSWORD`, `POSTGRES_USER`, and matching `PG*` variables), so the command connects without prompting. It seeds PostgreSQL, creates `sites/site.local`, and registers it as the default site.
 
 6. **(Optional) Install custom apps**
 

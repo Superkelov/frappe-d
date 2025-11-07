@@ -192,6 +192,8 @@ docker compose exec backend bench new-site site.local \
 > **Private Git hosts:** Populate `BENCH_GIT_CREDENTIALS` in `.env` with `.netrc` formatted entries (for example, `machine gitlab.com login oauth2 password <token>`) so the configurator can authenticate before running `bench get-app`.
 >
 > **Custom apps:** Any repository cloned via `BENCH_GET_APPS` is automatically installed into the bench virtualenv with `pip install -e`, so `bench new-site` immediately detects its Python package.
+>
+> **PostgreSQL credentials:** Docker Compose injects `DB_PASSWORD`, `POSTGRES_USER`, and `PG*` environment variables into the bench containers, so commands like `bench new-site --db-root-password "$DB_PASSWORD"` run without interactive prompts.
 
 > **Reminder:** Production images intentionally omit Honcho's `Procfile`. Run and manage processes with Docker Compose (e.g., `docker compose up`, `docker compose restart backend`) instead of `bench start`.
 
@@ -575,6 +577,7 @@ docker compose exec backend bench new-site site.local \
 # Access
 echo "127.0.0.1 site.local" | sudo tee -a /etc/hosts
 # Visit http://site.local:8080 and log in with Administrator / admin
+# (`DB_PASSWORD` comes from your `.env` file, so the command runs without extra prompts)
 
 # Cleanup when done
 docker compose down -v
