@@ -95,7 +95,7 @@ If your site is named `example.com` and you access it via that domain, no need t
 
 | Variable         | Purpose                        | Default               | Notes                                                   |
 | ---------------- | ------------------------------ | --------------------- | ------------------------------------------------------- |
-| `CUSTOM_IMAGE`   | Custom Docker image repository | Frappe official image | Leave empty to use default                              |
+| `CUSTOM_IMAGE`   | Custom Docker image repository | `<project>-frappe`     | Leave empty to build the bundled image locally (defaults to `${COMPOSE_PROJECT_NAME:-frappe-d}-frappe`); set only if you host your own registry                              |
 | `CUSTOM_TAG`     | Custom Docker image tag        | Latest stable         | Corresponds to `FRAPPE_VERSION`                         |
 | `PULL_POLICY`    | Image pull behavior            | `always`              | Options: `always`, `never`, `if-not-present`            |
 | `RESTART_POLICY` | Container restart behavior     | `unless-stopped`      | Options: `no`, `always`, `unless-stopped`, `on-failure` |
