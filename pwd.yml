@@ -49,6 +49,9 @@ services:
       DB_PORT: ${DB_PORT:-5432}
       DB_PASSWORD: ${DB_PASSWORD:?No db password set}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      REDIS_CACHE: ${REDIS_CACHE:-redis-cache:6379}
+      REDIS_QUEUE: ${REDIS_QUEUE:-redis-queue:6379}
+      REDIS_SOCKETIO: ${REDIS_SOCKETIO:-redis-socketio:6379}
     volumes:
       - sites:/home/frappe/frappe-bench/sites
 
@@ -64,14 +67,29 @@ services:
           --db-host "$$DB_HOST" --db-port "$$DB_PORT" \
           --db-root-username "$$POSTGRES_USER" --db-root-password "$$DB_PASSWORD" \
           --admin-password "$$ADMIN_PASSWORD"
+        if [ -n "$$INSTALL_APPS" ]; then
+          for app in $$INSTALL_APPS; do
+            bench --site "$$SITE_NAME" install-app $$app
+          done
+        fi
       fi
+      bench set-config -g redis_cache "redis://$${REDIS_CACHE:-redis-cache:6379}"
+      bench set-config -g redis_queue "redis://$${REDIS_QUEUE:-redis-queue:6379}"
+      bench set-config -g redis_socketio "redis://$${REDIS_SOCKETIO:-redis-socketio:6379}"
+      bench --site "$$SITE_NAME" set-config redis_cache "redis://$${REDIS_CACHE:-redis-cache:6379}"
+      bench --site "$$SITE_NAME" set-config redis_queue "redis://$${REDIS_QUEUE:-redis-queue:6379}"
+      bench --site "$$SITE_NAME" set-config redis_socketio "redis://$${REDIS_SOCKETIO:-redis-socketio:6379}"
     environment:
       SITE_NAME: ${SITE_NAME:?Set SITE_NAME}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD}
+      INSTALL_APPS: ${INSTALL_APPS:-}
       DB_HOST: ${DB_HOST:-db}
       DB_PORT: ${DB_PORT:-5432}
       DB_PASSWORD: ${DB_PASSWORD:?No db password set}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      REDIS_CACHE: ${REDIS_CACHE:-redis-cache:6379}
+      REDIS_QUEUE: ${REDIS_QUEUE:-redis-queue:6379}
+      REDIS_SOCKETIO: ${REDIS_SOCKETIO:-redis-socketio:6379}
     depends_on:
       db: { condition: service_healthy }
       configurator: { condition: service_completed_successfully }
@@ -85,33 +103,70 @@ services:
       DB_PORT: ${DB_PORT:-5432}
       DB_PASSWORD: ${DB_PASSWORD:?No db password set}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      REDIS_CACHE: ${REDIS_CACHE:-redis-cache:6379}
+      REDIS_QUEUE: ${REDIS_QUEUE:-redis-queue:6379}
+      REDIS_SOCKETIO: ${REDIS_SOCKETIO:-redis-socketio:6379}
     command: ["bash","-lc","bench serve --port 8000 --noreload"]
     volumes:
       - sites:/home/frappe/frappe-bench/sites
 
   websocket:
     image: "frappe/frappe:${FRAPPE_VERSION}"
+    environment:
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_PASSWORD: ${DB_PASSWORD:?No db password set}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      REDIS_CACHE: ${REDIS_CACHE:-redis-cache:6379}
+      REDIS_QUEUE: ${REDIS_QUEUE:-redis-queue:6379}
+      REDIS_SOCKETIO: ${REDIS_SOCKETIO:-redis-socketio:6379}
     command: ["node","/home/frappe/frappe-bench/apps/frappe/socketio.js"]
     volumes:
       - sites:/home/frappe/frappe-bench/sites
 
   queue-short:
     image: "frappe/frappe:${FRAPPE_VERSION}"
+    environment:
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_PASSWORD: ${DB_PASSWORD:?No db password set}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      REDIS_CACHE: ${REDIS_CACHE:-redis-cache:6379}
+      REDIS_QUEUE: ${REDIS_QUEUE:-redis-queue:6379}
+      REDIS_SOCKETIO: ${REDIS_SOCKETIO:-redis-socketio:6379}
     command: ["bench","worker","--queue","short,default"]
     volumes: [ "sites:/home/frappe/frappe-bench/sites" ]
 
   queue-long:
     image: "frappe/frappe:${FRAPPE_VERSION}"
+    environment:
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_PASSWORD: ${DB_PASSWORD:?No db password set}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      REDIS_CACHE: ${REDIS_CACHE:-redis-cache:6379}
+      REDIS_QUEUE: ${REDIS_QUEUE:-redis-queue:6379}
+      REDIS_SOCKETIO: ${REDIS_SOCKETIO:-redis-socketio:6379}
     command: ["bench","worker","--queue","long,default,short"]
     volumes: [ "sites:/home/frappe/frappe-bench/sites" ]
 
   scheduler:
     image: "frappe/frappe:${FRAPPE_VERSION}"
+    environment:
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_PASSWORD: ${DB_PASSWORD:?No db password set}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      REDIS_CACHE: ${REDIS_CACHE:-redis-cache:6379}
+      REDIS_QUEUE: ${REDIS_QUEUE:-redis-queue:6379}
+      REDIS_SOCKETIO: ${REDIS_SOCKETIO:-redis-socketio:6379}
     command: ["bench","schedule"]
     volumes: [ "sites:/home/frappe/frappe-bench/sites" ]
 
   frontend:
-    image: "frappe/erpnext-nginx:${FRAPPE_VERSION}"
+    image: "frappe/frappe:${FRAPPE_VERSION}"
+    entrypoint: ["/usr/local/bin/nginx-entrypoint.sh"]
+    command: []
     environment:
       BACKEND: backend:8000
       SOCKETIO: websocket:9000
