@@ -99,13 +99,12 @@ Edit `custom.env` to customize variables for your setup. The template includes c
 
 # Creating the final compose file
 
-Combine the base compose file with appropriate overrides for your use case. This example adds MariaDB, Redis, and exposes ports on `:8080`:
+Combine the base compose file with appropriate overrides for your use case. This example adds MariaDB and exposes ports on `:8080` (Redis is already bundled):
 
 ```bash
 docker compose --env-file example.env \
     -f compose.yaml \
     -f overrides/compose.mariadb.yaml \
-    -f overrides/compose.redis.yaml \
     -f overrides/compose.noproxy.yaml \
     config > compose.custom.yaml
 ```

@@ -23,6 +23,15 @@ Then edit `.env` and set variables according to your needs.
 
 ---
 
+## Bench Automation
+
+| Variable               | Purpose                                                      | Default | Notes |
+| ---------------------- | ------------------------------------------------------------ | ------- | ----- |
+| `BENCH_GET_APPS`       | Arguments passed to `bench get-app` during configuration. Each fetched app is installed into the virtualenv with `pip install -e` automatically.      | —       | Separate multiple entries with `;` or new lines |
+| `BENCH_GIT_CREDENTIALS` | `.netrc` credentials written before running `bench get-app` | —       | Use for private Git hosts (e.g., GitLab personal access tokens) |
+
+---
+
 ## Database Configuration
 
 | Variable                   | Purpose                                   | Default                              | When to Set                        |
@@ -30,7 +39,9 @@ Then edit `.env` and set variables according to your needs.
 | `DB_PASSWORD`              | Database root user password               | 123                                  | Always (unless using secrets file) |
 | `DB_PASSWORD_SECRETS_FILE` | Path to file containing database password | —                                    | Setup mariadb-secrets overrider    |
 | `DB_HOST`                  | Database hostname or IP                   | `db` (service name)                  | Only if using external database    |
-| `DB_PORT`                  | Database port                             | `3306` (MariaDB) / `5432` (Postgres) | Only if using external database    |
+| `DB_PORT`                  | Database port                             | `5432` (Postgres)                    | Only if using external database    |
+
+The configurator writes a PostgreSQL [`.pgpass`](https://www.postgresql.org/docs/current/libpq-pgpass.html) file at `sites/.pgpass` using `DB_HOST`, `DB_PORT`, `POSTGRES_USER`, and `DB_PASSWORD`. Every bench container sets `PGPASSFILE`, `PGHOST`, `PGPORT`, `PGUSER`, and `PGPASSWORD` so interactive `bench` commands connect to PostgreSQL without prompting for credentials.
 
 ---
 
@@ -38,8 +49,8 @@ Then edit `.env` and set variables according to your needs.
 
 | Variable      | Purpose                                             | Default                      | When to Set                           |
 | ------------- | --------------------------------------------------- | ---------------------------- | ------------------------------------- |
-| `REDIS_CACHE` | Redis hostname for caching                          | `redis-cache` (service name) | Only if using external Redis instance |
-| `REDIS_QUEUE` | Redis hostname for job queues and real-time updates | `redis-queue` (service name) | Only if using external Redis instance |
+| `REDIS_CACHE` | Redis hostname for caching                          | `redis-cache:6379` (service:port) | Only if using an external Redis instance |
+| `REDIS_QUEUE` | Redis hostname for job queues and real-time updates | `redis-queue:6379` (service:port) | Only if using an external Redis instance |
 
 ---
 

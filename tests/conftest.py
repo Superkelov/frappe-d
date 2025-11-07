@@ -71,8 +71,10 @@ def frappe_site(compose: Compose):
     site_name = "tests.localhost"
     compose.bench(
         "new-site",
-        # TODO: change to --mariadb-user-host-login-scope=%
-        "--no-mariadb-socket",
+        "--db-type",
+        "postgres",
+        "--db-root-username",
+        "postgres",
         "--db-root-password=123",
         "--admin-password=admin",
         site_name,
@@ -110,7 +112,7 @@ def erpnext_site(compose: Compose):
 @pytest.fixture
 def postgres_setup(compose: Compose):
     compose.stop()
-    compose("-f", "overrides/compose.postgres.yaml", "up", "-d", "--quiet-pull")
+    compose("up", "-d", "--quiet-pull")
     compose.bench("set-config", "-g", "root_login", "postgres")
     compose.bench("set-config", "-g", "root_password", "123")
     yield
