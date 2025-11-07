@@ -111,7 +111,9 @@ services:
     volumes: [ "sites:/home/frappe/frappe-bench/sites" ]
 
   frontend:
-    image: "frappe/erpnext-nginx:${FRAPPE_VERSION}"
+    image: "frappe/frappe:${FRAPPE_VERSION}"
+    entrypoint: ["/usr/local/bin/nginx-entrypoint.sh"]
+    command: []
     environment:
       BACKEND: backend:8000
       SOCKETIO: websocket:9000

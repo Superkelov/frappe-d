@@ -160,9 +160,10 @@ services:
 
   # 4) Frontend (nginx) — правильный образ с nginx-entrypoint.sh
   frontend:
-    image: "frappe/erpnext-nginx:${FRAPPE_VERSION}"
+    <<: *customizable_image
     platform: linux/amd64
-    restart: unless-stopped
+    entrypoint: ["/usr/local/bin/nginx-entrypoint.sh"]
+    command: []
     environment:
       BACKEND: backend:8000
       SOCKETIO: websocket:9000
