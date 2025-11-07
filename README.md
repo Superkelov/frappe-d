@@ -40,13 +40,13 @@ If you need a deeper architectural overview, browse the [Getting Started Guide](
    > - Pre-install apps (for example `ekgfn_core`) by filling `BENCH_GET_APPS` with commands such as `bench get-app https://gitlab.com/kz-dev/adizit/ugq/ucssf/ekgfn_core.git --branch feature/qr_egov`.
    > - For private Git hosts, add a `.netrc` entry (e.g. `machine gitlab.com login oauth2 password <token>`) to `BENCH_GIT_CREDENTIALS` so the configurator can authenticate before cloning.
 
-4. **Build and start the Frappe stack (PostgreSQL only)**
+4. **Build and start the Frappe stack (PostgreSQL + Redis)**
 
    ```bash
    docker compose up --build -d
    ```
 
-   The first run builds a local `frappe/frappe` image (Frappe framework only) before launching backend workers, the nginx frontend, Socket.IO, and a dedicated PostgreSQL 16 database. Confirm everything is healthy with `docker compose ps`.
+   The first run builds a local `frappe/frappe` image (Frappe framework only) before launching Redis (cache + queue), backend workers, the nginx frontend, Socket.IO, and a dedicated PostgreSQL 16 database. Confirm everything is healthy with `docker compose ps`.
 
 5. **Create your first site**
 
@@ -76,7 +76,9 @@ If you need a deeper architectural overview, browse the [Getting Started Guide](
    - Browse to [http://site.local:8080](http://site.local:8080)
    - Log in using the administrator password you set in step 5
 
-When you are finished, stop the stack with `docker compose down`. Persistent data lives in Docker volumes (`sites`, `db-data`).
+> **Heads up:** The production-oriented container image omits Honcho's `Procfile` on purpose. Commands such as `bench start` will fail; rely on Docker Compose to supervise the backend, workers, and WebSocket processes instead.
+
+When you are finished, stop the stack with `docker compose down`. Persistent data lives in Docker volumes (`sites`, `db-data`, `redis-queue-data`).
 
 ### Need ERPNext?
 

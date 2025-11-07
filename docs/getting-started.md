@@ -36,13 +36,10 @@ The base compose file includes these essential services:
 - **backend** - Werkzeug development server for dynamic content processing
 - **frontend** - Nginx reverse proxy that serves static assets and routes requests
 - **websocket** - Node.js server running Socket.IO for real-time communications
-- **queue-short/long** - Python workers using RQ (Redis Queue) for asynchronous background job processing
-- **scheduler** - Python service that runs scheduled tasks using the schedule library
+- **queue-short/long** - Python workers using RQ (Redis Queue) for asynchronous background job processing (requires Redis)
+- **scheduler** - Python service that runs scheduled tasks using the schedule library (requires Redis)
 - **db** - PostgreSQL 16 database server with health checks enabled
-
-Additional services are added through compose overrides:
-
-- **redis-cache/queue** - Redis instances for caching and job queues (via `compose.redis.yaml`)
+- **redis-cache/queue** - Redis instances for caching, websockets, and job queues (now part of the base stack)
 
 ### How Services Work Together
 
@@ -88,7 +85,7 @@ Four predefined Dockerfiles are available, each serving different use cases:
 Docker Compose "overrides" that extend the base compose.yaml for different scenarios:
 
 - **compose.postgres.yaml** - Override PostgreSQL defaults (ports, usernames, database names)
-- **compose.redis.yaml** - Adds Redis caching service
+- **compose.redis.yaml** - Legacy helper for older stacks; no longer required because Redis is bundled by default
 - **compose.proxy.yaml** - Adds Traefik reverse proxy for multi-site hosting
 - **compose.https.yaml** - Adds SSL/TLS certificate management
 - **compose.mariadb*.yaml** - Legacy overrides that reintroduce MariaDB for historical projects (not recommended)
@@ -176,7 +173,7 @@ cd frappe_docker
 cp example.env .env
 # Edit .env and set DB_PASSWORD (and optional POSTGRES_* overrides)
 
-# Build (first run) and start core services (Frappe + PostgreSQL 16)
+# Build (first run) and start core services (Frappe + PostgreSQL 16 + Redis)
 docker compose up --build -d
 # Subsequent runs can omit --build once the local image exists
 
@@ -193,6 +190,8 @@ docker compose exec backend bench new-site site.local \
 > Legacy note: [`pwd.yml`](../pwd.yml) still provisions an ERPNext + MariaDB demo stack for backwards compatibility. Prefer `compose.yaml` for clean Frappe + PostgreSQL deployments.
 
 > **Private Git hosts:** Populate `BENCH_GIT_CREDENTIALS` in `.env` with `.netrc` formatted entries (for example, `machine gitlab.com login oauth2 password <token>`) so the configurator can authenticate before running `bench get-app`.
+
+> **Reminder:** Production images intentionally omit Honcho's `Procfile`. Run and manage processes with Docker Compose (e.g., `docker compose up`, `docker compose restart backend`) instead of `bench start`.
 
 ### Full Development Setup
 
@@ -656,8 +655,7 @@ bench build --app library_management
 
 # Key files:
 # - compose.yaml
-# - compose.mariadb.yaml
-# - compose.redis.yaml
+# - compose.mariadb.yaml (legacy)
 # - compose.proxy.yaml
 # - compose.https.yaml
 
@@ -665,7 +663,6 @@ bench build --app library_management
 docker compose \
   -f compose.yaml \
   -f overrides/compose.mariadb.yaml \
-  -f overrides/compose.redis.yaml \
   -f overrides/compose.https.yaml \
   up -d
 ```

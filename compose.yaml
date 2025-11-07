@@ -16,19 +16,21 @@ x-customizable-image: &customizable_image
   pull_policy: ${PULL_POLICY:-missing}
   restart: ${RESTART_POLICY:-unless-stopped}
 
-x-depends-on-configurator: &depends_on_configurator
+x-runtime-service: &runtime_service
+  <<: *customizable_image
   depends_on:
     configurator:
       condition: service_completed_successfully
-
-x-backend-defaults: &backend_defaults
-  <<: [*depends_on_configurator, *customizable_image]
+    redis-cache:
+      condition: service_healthy
+    redis-queue:
+      condition: service_healthy
   volumes:
     - sites:/home/frappe/frappe-bench/sites
 
 services:
   configurator:
-    <<: *backend_defaults
+    <<: *customizable_image
     platform: linux/amd64
     entrypoint:
       - bash
@@ -63,16 +65,22 @@ services:
       BENCH_GIT_CREDENTIALS: ${BENCH_GIT_CREDENTIALS:-}
       DB_HOST: ${DB_HOST:-db}
       DB_PORT: ${DB_PORT:-5432}
-      REDIS_CACHE: ${REDIS_CACHE:-}
-      REDIS_QUEUE: ${REDIS_QUEUE:-}
+      REDIS_CACHE: ${REDIS_CACHE:-redis-cache:6379}
+      REDIS_QUEUE: ${REDIS_QUEUE:-redis-queue:6379}
       SOCKETIO_PORT: 9000
     depends_on:
       db:
         condition: service_healthy
+      redis-cache:
+        condition: service_healthy
+      redis-queue:
+        condition: service_healthy
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
     restart: on-failure
 
   backend:
-    <<: *backend_defaults
+    <<: *runtime_service
     platform: linux/amd64
 
   frontend:
@@ -96,28 +104,54 @@ services:
       - websocket
 
   websocket:
-    <<: [*depends_on_configurator, *customizable_image]
+    <<: *runtime_service
     platform: linux/amd64
     command:
       - node
       - /home/frappe/frappe-bench/apps/frappe/socketio.js
-    volumes:
-      - sites:/home/frappe/frappe-bench/sites
 
   queue-short:
-    <<: *backend_defaults
+    <<: *runtime_service
     platform: linux/amd64
     command: bench worker --queue short,default
 
   queue-long:
-    <<: *backend_defaults
+    <<: *runtime_service
     platform: linux/amd64
     command: bench worker --queue long,default,short
 
   scheduler:
-    <<: *backend_defaults
+    <<: *runtime_service
     platform: linux/amd64
     command: bench schedule
+
+  redis-cache:
+    image: redis:6.2-alpine
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - redis-cli
+        - ping
+      start_period: 5s
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis-queue:
+    image: redis:6.2-alpine
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - redis-cli
+        - ping
+      start_period: 5s
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - redis-queue-data:/data
 
   db:
     image: postgres:16
@@ -141,3 +175,4 @@ services:
 volumes:
   sites:
   db-data:
+  redis-queue-data:

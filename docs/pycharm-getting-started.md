@@ -34,7 +34,7 @@ docker compose up --build -d
 This command:
 
 - builds the local `frappe/frappe` image the first time it runs so Docker Hub access is not required,
-- starts the containers defined in `compose.yaml`, including PostgreSQL 16,
+- starts the containers defined in `compose.yaml`, including PostgreSQL 16 and Redis (cache + queue),
 - automatically waits for the PostgreSQL health check before running the configurator, and
 - populates the bench with only the Frappe framework so no ERPNext code ships in the container.
 
@@ -42,10 +42,10 @@ PyCharm will keep the terminal session open so you can track progress. When the 
 
 ## 3. Verify site creation and install the app
 
-1. Follow the site creation logs to ensure the containers finish the initial setup:
+1. Follow the configurator logs to ensure the containers finish the initial setup:
 
    ```bash
-   docker compose logs -f create-site
+   docker compose logs -f configurator
    ```
 
 2. Once the site is ready, confirm that your custom application is listed:
@@ -71,3 +71,4 @@ docker compose down
 ```
 
 Your volumes (including the PostgreSQL data directory) remain intact, so a subsequent `docker compose up` reuses the existing database.
+> **Reminder:** The production image inside each service omits Honcho's `Procfile`, so `bench start` is unavailable. Let Docker Compose manage processes (e.g., `docker compose restart backend`) whenever you need to cycle a component.

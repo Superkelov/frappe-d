@@ -47,8 +47,8 @@ Then edit `.env` and set variables according to your needs.
 
 | Variable      | Purpose                                             | Default                      | When to Set                           |
 | ------------- | --------------------------------------------------- | ---------------------------- | ------------------------------------- |
-| `REDIS_CACHE` | Redis hostname for caching                          | `redis-cache` (service name) | Only if using external Redis instance |
-| `REDIS_QUEUE` | Redis hostname for job queues and real-time updates | `redis-queue` (service name) | Only if using external Redis instance |
+| `REDIS_CACHE` | Redis hostname for caching                          | `redis-cache:6379` (service:port) | Only if using an external Redis instance |
+| `REDIS_QUEUE` | Redis hostname for job queues and real-time updates | `redis-queue:6379` (service:port) | Only if using an external Redis instance |
 
 ---
 
